@@ -16,5 +16,8 @@ For help getting started with Flutter development, view the
 samples, guidance on mobile development, and a full API reference.
 
 run
-flutter run
 flutter emulators --launch Pixel_9_API_35
+flutter run
+
+build
+flutter build apk
