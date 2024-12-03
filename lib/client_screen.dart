@@ -57,12 +57,15 @@ class _ClientScreenState extends State<ClientScreen> {
       return;
     }
 
-    print('Attempting to connect to: ws://$serverIp:4040/ws');
+    final wsUrl = 'ws://$serverIp:4040/ws';
+    print('Attempting to connect to: $wsUrl');
     try {
-      _channel = WebSocketChannel.connect(Uri.parse('ws://$serverIp:4040/ws'));
+      _channel = WebSocketChannel.connect(Uri.parse(wsUrl));
+      print('WebSocket channel created, waiting for connection...');
+      
       _channel!.stream.listen(
         (message) {
-          print('Received message: $message');
+          print('Received message from server: $message');
           setState(() {
             _messages.add('Server: $message');
             _isConnected = true;
@@ -85,8 +88,9 @@ class _ClientScreenState extends State<ClientScreen> {
         },
       );
       
-      // Send username to server
+      print('Sending username to server...');
       _channel?.sink.add('USERNAME:${_usernameController.text}');
+      print('Username sent successfully');
     } catch (e) {
       print('Connection error: $e');
       setState(() {
