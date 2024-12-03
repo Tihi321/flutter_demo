@@ -21,3 +21,6 @@ flutter run
 
 build
 flutter build apk
+
+clean
+flutter clean

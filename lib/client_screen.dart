@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'package:web_socket_channel/web_socket_channel.dart';
-import 'dart:io';
+import 'package:mobile_scanner/mobile_scanner.dart';
 
 class ClientScreen extends StatefulWidget {
   const ClientScreen({super.key});
@@ -16,29 +16,14 @@ class _ClientScreenState extends State<ClientScreen> {
   final TextEditingController _messageController = TextEditingController();
   final TextEditingController _usernameController = TextEditingController();
   final List<String> _messages = [];
-  List<NetworkInterface> _interfaces = [];
   bool _isConnected = false;
+  bool _isScanning = false;
   String? _connectionError;
 
   @override
   void initState() {
     super.initState();
-    _listNetworkInterfaces();
     _usernameController.text = 'Client 1';
-  }
-
-  void _listNetworkInterfaces() async {
-    try {
-      _interfaces = await NetworkInterface.list(includeLoopback: true, type: InternetAddressType.any);
-      print('Found interfaces: ${_interfaces.map((interface) => 
-        '${interface.name}: ${interface.addresses.map((addr) => addr.address).join(", ")}').join('\n')}');
-      setState(() {});
-    } catch (e) {
-      print('Error listing network interfaces: $e');
-      setState(() {
-        _connectionError = 'Failed to list network interfaces: $e';
-      });
-    }
   }
 
   void _connectToServer([String? ip]) {
@@ -109,6 +94,45 @@ class _ClientScreenState extends State<ClientScreen> {
     });
   }
 
+  void _startQRScanner() {
+    setState(() {
+      _isScanning = true;
+    });
+  }
+
+  void _stopQRScanner() {
+    setState(() {
+      _isScanning = false;
+    });
+  }
+
+  Widget _buildQRScanner() {
+    return Stack(
+      children: [
+        MobileScanner(
+          onDetect: (capture) {
+            final List<Barcode> barcodes = capture.barcodes;
+            for (final barcode in barcodes) {
+              if (barcode.rawValue != null) {
+                _ipController.text = barcode.rawValue!;
+                _stopQRScanner();
+                break;
+              }
+            }
+          },
+        ),
+        Positioned(
+          top: 20,
+          right: 20,
+          child: IconButton(
+            icon: const Icon(Icons.close, color: Colors.white),
+            onPressed: _stopQRScanner,
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -121,107 +145,103 @@ class _ClientScreenState extends State<ClientScreen> {
             Icon(Icons.circle, color: Colors.red),
         ],
       ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: TextField(
-              controller: _usernameController,
-              decoration: const InputDecoration(
-                labelText: 'Enter username',
-                border: OutlineInputBorder(),
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: DropdownButton<NetworkInterface>(
-              hint: const Text('Select Network Interface'),
-              isExpanded: true,
-              items: _interfaces.map((interface) {
-                return DropdownMenuItem<NetworkInterface>(
-                  value: interface,
-                  child: Text('${interface.name} (${interface.addresses.map((addr) => addr.address).join(", ")})'),
-                );
-              }).toList(),
-              onChanged: (selectedInterface) {
-                if (selectedInterface != null && selectedInterface.addresses.isNotEmpty) {
-                  setState(() {
-                    _ipController.text = selectedInterface.addresses.first.address;
-                  });
-                }
-              },
-            ),
-          ),
-          if (_connectionError != null)
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Text(
-                _connectionError!,
-                style: TextStyle(color: Colors.red),
-              ),
-            ),
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: TextField(
-              controller: _ipController,
-              decoration: const InputDecoration(
-                labelText: 'Enter server IP',
-                border: OutlineInputBorder(),
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8.0),
-            child: SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue,
-                  padding: const EdgeInsets.symmetric(vertical: 15),
-                ),
-                onPressed: _connectToServer,
-                child: const Text(
-                  'Connect to Server',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                  ),
-                ),
-              ),
-            ),
-          ),
-          Expanded(
-            child: ListView.builder(
-              itemCount: _messages.length,
-              itemBuilder: (context, index) {
-                return ListTile(
-                  title: Text(_messages[index]),
-                );
-              },
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _messageController,
-                    decoration: const InputDecoration(
-                      labelText: 'Enter message',
+      body: _isScanning
+          ? _buildQRScanner()
+          : Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: TextField(
+                      controller: _usernameController,
+                      decoration: const InputDecoration(
+                        labelText: 'Enter username',
+                        border: OutlineInputBorder(),
+                      ),
                     ),
                   ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.send),
-                  onPressed: _sendMessage,
-                ),
-              ],
+                  const SizedBox(height: 16),
+                  if (_connectionError != null)
+                    Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: Text(
+                        _connectionError!,
+                        style: const TextStyle(color: Colors.red),
+                      ),
+                    ),
+                  Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _ipController,
+                            decoration: const InputDecoration(
+                              labelText: 'Enter server IP',
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.qr_code_scanner),
+                          onPressed: _startQRScanner,
+                        ),
+                      ],
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue,
+                          padding: const EdgeInsets.symmetric(vertical: 15),
+                        ),
+                        onPressed: _connectToServer,
+                        child: const Text(
+                          'Connect to Server',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: ListView.builder(
+                      itemCount: _messages.length,
+                      itemBuilder: (context, index) {
+                        return ListTile(
+                          title: Text(_messages[index]),
+                        );
+                      },
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _messageController,
+                            decoration: const InputDecoration(
+                              labelText: 'Enter message',
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.send),
+                          onPressed: _sendMessage,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
-      ),
     );
   }
 }

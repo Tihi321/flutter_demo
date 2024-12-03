@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:async';
 import 'dart:io';
 import 'package:web_socket_channel/io.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 class ServerScreen extends StatefulWidget {
   const ServerScreen({super.key});
@@ -170,6 +171,39 @@ class _ServerScreenState extends State<ServerScreen> {
                   onPressed: _sendMessage,
                 ),
               ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: ElevatedButton(
+              onPressed: () {
+                showDialog(
+                  context: context,
+                  builder: (BuildContext context) {
+                    return AlertDialog(
+                      title: const Text('Server IP QR Code'),
+                      content: SizedBox(
+                        width: 200,
+                        height: 200,
+                        child: QrImageView(
+                          data: 'ws://${_server?.address.address}:${_server?.port}',
+                          version: QrVersions.auto,
+                          size: 200.0,
+                        ),
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () {
+                            Navigator.of(context).pop();
+                          },
+                          child: const Text('Close'),
+                        ),
+                      ],
+                    );
+                  },
+                );
+              },
+              child: const Text('Show QR Code'),
             ),
           ),
         ],
