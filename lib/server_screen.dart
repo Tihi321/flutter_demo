@@ -25,37 +25,102 @@ class _ServerScreenState extends State<ServerScreen> {
   void _startServer() async {
     try {
       print('Starting server on port 4040...');
-      _server = await HttpServer.bind(InternetAddress.anyIPv4, 4040);
-      print('Server started successfully. Listening on ${_server!.address.address}:${_server!.port}');
       
-      _server!.listen((HttpRequest request) async {
-        print('Received request for: ${request.uri.path}');
-        if (request.uri.path == '/ws') {
-          print('Upgrading connection to WebSocket');
-          try {
-            var socket = await WebSocketTransformer.upgrade(request);
-            print('WebSocket connection established');
-            _clients.add(socket);
-            socket.listen(
-              (message) {
-                print('Received message from client: $message');
-                setState(() {
-                  _messages.add('Client: $message');
-                });
-              },
-              onError: (error) => print('WebSocket error on server: $error'),
-              onDone: () {
-                print('Client disconnected');
-                _clients.remove(socket);
-              }
-            );
-          } catch (e) {
-            print('Error upgrading to WebSocket: $e');
+      // Get the WiFi IP address
+      List<NetworkInterface> interfaces = await NetworkInterface.list(
+        includeLoopback: false,
+        type: InternetAddressType.IPv4,
+      );
+      
+      String? serverIp;
+      for (var interface in interfaces) {
+        print('Interface: ${interface.name}');
+        for (var addr in interface.addresses) {
+          print('  Address: ${addr.address}');
+          // Look for the WiFi or hotspot interface
+          if (interface.name.toLowerCase().contains('wlan') || 
+              interface.name.toLowerCase().contains('wifi') ||
+              interface.name.toLowerCase().contains('wireless')) {
+            serverIp = addr.address;
+            break;
           }
         }
+        if (serverIp != null) break;
+      }
+      
+      if (serverIp == null) {
+        print('Warning: Could not find WiFi interface, falling back to any IPv4');
+        serverIp = InternetAddress.anyIPv4.address;
+      }
+      
+      print('Binding server to IP: $serverIp');
+      _server = await HttpServer.bind(serverIp, 4040, shared: true);
+      print('Server started successfully on ${_server!.address.address}:${_server!.port}');
+      
+      setState(() {
+        _messages.add('Server started on ${_server!.address.address}:${_server!.port}');
       });
+      
+      _server!.listen(
+        (HttpRequest request) async {
+          print('Received request for: ${request.uri.path}');
+          if (request.uri.path == '/ws') {
+            print('Upgrading connection to WebSocket');
+            try {
+              var socket = await WebSocketTransformer.upgrade(request);
+              print('WebSocket connection established');
+              _clients.add(socket);
+              
+              // Send welcome message to the new client
+              socket.add('Connected to server at ${_server!.address.address}:${_server!.port}');
+              
+              socket.listen(
+                (message) {
+                  print('Received message from client: $message');
+                  setState(() {
+                    if (message.toString().startsWith('USERNAME:')) {
+                      String username = message.toString().substring(9);
+                      _messages.add('Client connected: $username');
+                      // Broadcast to all clients that a new user joined
+                      for (var client in _clients) {
+                        if (client != socket) {
+                          client.add('User $username joined the chat');
+                        }
+                      }
+                    } else {
+                      _messages.add('Client: $message');
+                    }
+                  });
+                },
+                onError: (error) {
+                  print('WebSocket error on server: $error');
+                  _clients.remove(socket);
+                },
+                onDone: () {
+                  print('Client disconnected');
+                  _clients.remove(socket);
+                },
+              );
+            } catch (e) {
+              print('Error upgrading to WebSocket: $e');
+              request.response.statusCode = HttpStatus.internalServerError;
+              request.response.close();
+            }
+          } else {
+            print('Invalid path: ${request.uri.path}');
+            request.response.statusCode = HttpStatus.notFound;
+            request.response.close();
+          }
+        },
+        onError: (error) {
+          print('Server error: $error');
+        },
+      );
     } catch (e) {
       print('Error starting server: $e');
+      setState(() {
+        _messages.add('Error starting server: $e');
+      });
     }
   }
 
