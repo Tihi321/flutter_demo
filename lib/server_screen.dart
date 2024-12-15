@@ -13,13 +13,21 @@ class ServerScreen extends StatefulWidget {
   State<ServerScreen> createState() => _ServerScreenState();
 }
 
+class Message {
+  final String username;
+  final String content;
+  Message(this.username, this.content);
+}
+
 class _ServerScreenState extends State<ServerScreen> {
   HttpServer? _server;
-  List<WebSocket> _clients = [];
+  final Map<WebSocket, String> _clients =
+      {}; // Change list to map of WebSocket to username
   final TextEditingController _messageController = TextEditingController();
   final TextEditingController _portController =
       TextEditingController(text: '4040');
-  final List<String> _messages = [];
+  final List<Message> _messages =
+      []; // Change from List<String> to List<Message>
   bool _isServerStarted = false;
 
   @override
@@ -31,8 +39,8 @@ class _ServerScreenState extends State<ServerScreen> {
     final port = int.tryParse(_portController.text);
     if (port == null || port < 1 || port > 65535) {
       setState(() {
-        _messages.add(
-            'Invalid port number. Please enter a number between 1 and 65535.');
+        _messages.add(Message('System',
+            'Invalid port number. Please enter a number between 1 and 65535.'));
       });
       return;
     }
@@ -56,8 +64,8 @@ class _ServerScreenState extends State<ServerScreen> {
 
       setState(() {
         _isServerStarted = true;
-        _messages.add(
-            'Server started on ${_server!.address.address}:${_server!.port}');
+        _messages.add(Message('System',
+            'Server started on ${_server!.address.address}:${_server!.port}'));
       });
 
       _server!.listen(
@@ -68,7 +76,7 @@ class _ServerScreenState extends State<ServerScreen> {
             try {
               var socket = await WebSocketTransformer.upgrade(request);
               print('WebSocket connection established');
-              _clients.add(socket);
+              _clients[socket] = ''; // Initialize with empty username
 
               // Send welcome message to the new client
               socket.add(
@@ -77,20 +85,7 @@ class _ServerScreenState extends State<ServerScreen> {
               socket.listen(
                 (message) {
                   print('Received message from client: $message');
-                  setState(() {
-                    if (message.toString().startsWith('USERNAME:')) {
-                      String username = message.toString().substring(9);
-                      _messages.add('Client connected: $username');
-                      // Broadcast to all clients that a new user joined
-                      for (var client in _clients) {
-                        if (client != socket) {
-                          client.add('User $username joined the chat');
-                        }
-                      }
-                    } else {
-                      _messages.add('Client: $message');
-                    }
-                  });
+                  _handleIncomingMessage(message, socket);
                 },
                 onError: (error) {
                   print('WebSocket error on server: $error');
@@ -119,18 +114,56 @@ class _ServerScreenState extends State<ServerScreen> {
     } catch (e) {
       print('Error starting server: $e');
       setState(() {
-        _messages.add('Error starting server: $e');
+        _messages.add(Message('System', 'Error starting server: $e'));
       });
     }
   }
 
+  void _handleIncomingMessage(String message, WebSocket client) {
+    if (message.startsWith('USERNAME:')) {
+      // Handle username registration
+      String username = message.substring(9);
+      _clients[client] = username;
+      _broadcastMessage('$username joined the chat', isSystem: true);
+    } else {
+      // Handle regular message
+      String username = _clients[client] ?? 'Unknown';
+      if (message.startsWith('$username: ')) {
+        // If message already contains username prefix, strip it
+        String content = message.substring(username.length + 2);
+        _addMessage(username, content);
+        _broadcastMessage(message);
+      } else {
+        _addMessage(username, message);
+        _broadcastMessage('$username: $message');
+      }
+    }
+  }
+
+  void _broadcastMessage(String message, {bool isSystem = false}) {
+    for (var client in _clients.keys) {
+      client.add(message);
+    }
+    if (isSystem) {
+      setState(() {
+        _messages.add(Message('System', message));
+      });
+    }
+  }
+
+  void _addMessage(String username, String content) {
+    setState(() {
+      _messages.add(Message(username, content));
+    });
+  }
+
   void _sendMessage() {
     final message = _messageController.text;
-    for (var client in _clients) {
+    for (var client in _clients.keys) {
       client.add(message);
     }
     setState(() {
-      _messages.add('Server: $message');
+      _messages.add(Message('Server', message));
       _messageController.clear();
     });
   }
@@ -166,12 +199,76 @@ class _ServerScreenState extends State<ServerScreen> {
             ),
           ],
           if (_isServerStarted) ...[
+            // Add QR code button at the top
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Server running on ${_server?.address.address}:${_server?.port}',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.qr_code),
+                    onPressed: () {
+                      showDialog(
+                        context: context,
+                        builder: (BuildContext context) {
+                          return AlertDialog(
+                            title: const Text('Server IP QR Code'),
+                            content: SizedBox(
+                              width: 200,
+                              height: 200,
+                              child: QrImageView(
+                                data: jsonEncode({
+                                  'ip': _server?.address.address,
+                                  'port': _server?.port.toString()
+                                }),
+                                version: QrVersions.auto,
+                                size: 200.0,
+                              ),
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () {
+                                  Navigator.of(context).pop();
+                                },
+                                child: const Text('Close'),
+                              ),
+                            ],
+                          );
+                        },
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
             Expanded(
               child: ListView.builder(
                 itemCount: _messages.length,
                 itemBuilder: (context, index) {
+                  final message = _messages[index];
                   return ListTile(
-                    title: Text(_messages[index]),
+                    title: RichText(
+                      text: TextSpan(
+                        children: [
+                          TextSpan(
+                            text: '${message.username}: ',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black,
+                            ),
+                          ),
+                          TextSpan(
+                            text: message.content,
+                            style: const TextStyle(color: Colors.black),
+                          ),
+                        ],
+                      ),
+                    ),
                   );
                 },
               ),
@@ -193,42 +290,6 @@ class _ServerScreenState extends State<ServerScreen> {
                     onPressed: _sendMessage,
                   ),
                 ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: ElevatedButton(
-                onPressed: () {
-                  showDialog(
-                    context: context,
-                    builder: (BuildContext context) {
-                      return AlertDialog(
-                        title: const Text('Server IP QR Code'),
-                        content: SizedBox(
-                          width: 200,
-                          height: 200,
-                          child: QrImageView(
-                            data: jsonEncode({
-                              'ip': _server?.address.address,
-                              'port': _server?.port.toString()
-                            }),
-                            version: QrVersions.auto,
-                            size: 200.0,
-                          ),
-                        ),
-                        actions: [
-                          TextButton(
-                            onPressed: () {
-                              Navigator.of(context).pop();
-                            },
-                            child: const Text('Close'),
-                          ),
-                        ],
-                      );
-                    },
-                  );
-                },
-                child: const Text('Show QR Code'),
               ),
             ),
           ],

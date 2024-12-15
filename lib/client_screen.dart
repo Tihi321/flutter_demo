@@ -101,11 +101,20 @@ class _ClientScreenState extends State<ClientScreen> {
     }
   }
 
+  void _disconnectFromServer() {
+    _channel?.sink.close();
+    setState(() {
+      _isConnected = false;
+      _connectionError = 'Disconnected';
+    });
+  }
+
   void _sendMessage() {
     final message = _messageController.text;
-    _channel?.sink.add(message);
+    final username = _usernameController.text;
+    _channel?.sink.add('$username: $message');
     setState(() {
-      _messages.add('Client: $message');
+      _messages.add('You: $message');
       _messageController.clear();
     });
   }
@@ -156,6 +165,85 @@ class _ClientScreenState extends State<ClientScreen> {
     );
   }
 
+  Widget _buildConnectionControls() {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: TextField(
+            controller: _usernameController,
+            decoration: const InputDecoration(
+              labelText: 'Enter username',
+              border: OutlineInputBorder(),
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        if (_connectionError != null)
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Text(
+              _connectionError!,
+              style: const TextStyle(color: Colors.red),
+            ),
+          ),
+        Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: Row(
+            children: [
+              Expanded(
+                flex: 7,
+                child: TextField(
+                  controller: _ipController,
+                  decoration: const InputDecoration(
+                    labelText: 'Enter server IP',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                flex: 3,
+                child: TextField(
+                  controller: _portController,
+                  decoration: const InputDecoration(
+                    labelText: 'Port',
+                    border: OutlineInputBorder(),
+                  ),
+                  keyboardType: TextInputType.number,
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.qr_code_scanner),
+                onPressed: _startQRScanner,
+              ),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8.0),
+          child: SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue,
+                padding: const EdgeInsets.symmetric(vertical: 15),
+              ),
+              onPressed: _connectToServer,
+              child: const Text(
+                'Connect to Server',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -174,78 +262,29 @@ class _ClientScreenState extends State<ClientScreen> {
               padding: const EdgeInsets.all(16.0),
               child: Column(
                 children: [
-                  Padding(
-                    padding: const EdgeInsets.all(8.0),
-                    child: TextField(
-                      controller: _usernameController,
-                      decoration: const InputDecoration(
-                        labelText: 'Enter username',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  if (_connectionError != null)
+                  if (!_isConnected)
+                    _buildConnectionControls()
+                  else
                     Padding(
-                      padding: const EdgeInsets.all(8.0),
-                      child: Text(
-                        _connectionError!,
-                        style: const TextStyle(color: Colors.red),
-                      ),
-                    ),
-                  Padding(
-                    padding: const EdgeInsets.all(8.0),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          flex: 7,
-                          child: TextField(
-                            controller: _ipController,
-                            decoration: const InputDecoration(
-                              labelText: 'Enter server IP',
-                              border: OutlineInputBorder(),
-                            ),
+                      padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.red,
+                            padding: const EdgeInsets.symmetric(vertical: 15),
                           ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          flex: 3,
-                          child: TextField(
-                            controller: _portController,
-                            decoration: const InputDecoration(
-                              labelText: 'Port',
-                              border: OutlineInputBorder(),
+                          onPressed: _disconnectFromServer,
+                          child: const Text(
+                            'Disconnect',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
                             ),
-                            keyboardType: TextInputType.number,
-                          ),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.qr_code_scanner),
-                          onPressed: _startQRScanner,
-                        ),
-                      ],
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                    child: SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue,
-                          padding: const EdgeInsets.symmetric(vertical: 15),
-                        ),
-                        onPressed: _connectToServer,
-                        child: const Text(
-                          'Connect to Server',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
                           ),
                         ),
                       ),
                     ),
-                  ),
                   Expanded(
                     child: ListView.builder(
                       itemCount: _messages.length,
@@ -256,25 +295,26 @@ class _ClientScreenState extends State<ClientScreen> {
                       },
                     ),
                   ),
-                  Padding(
-                    padding: const EdgeInsets.all(8.0),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: _messageController,
-                            decoration: const InputDecoration(
-                              labelText: 'Enter message',
+                  if (_isConnected)
+                    Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _messageController,
+                              decoration: const InputDecoration(
+                                labelText: 'Enter message',
+                              ),
                             ),
                           ),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.send),
-                          onPressed: _sendMessage,
-                        ),
-                      ],
+                          IconButton(
+                            icon: const Icon(Icons.send),
+                            onPressed: _sendMessage,
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
                 ],
               ),
             ),
