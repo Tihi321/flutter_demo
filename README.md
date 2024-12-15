@@ -67,6 +67,19 @@ flutter run -d <device1_id>
 flutter run -d <device2_id>
 ```
 
+## Development Mode
+
+To run the app in development/emulator mode:
+
+```bash
+flutter run --dart-define=FORCE_EMULATOR=true
+flutter run -d emulator-5554 --dart-define=FORCE_EMULATOR=true
+flutter run -d emulator-5556 --dart-define=SERVER_ADDRESS=192.168.178.79
+flutter run -d emulator-5556 | findstr /v "MESA"
+```
+
+This will enable special handling for emulator networking, such as using `10.0.2.2` as the localhost address.
+
 ## Building
 
 ### Debug Build
@@ -91,6 +104,16 @@ flutter build ios --release
 flutter clean
 flutter pub get
 flutter build apk --release
+```
+
+## Build Output Location
+
+### APK Location
+
+After running `flutter build apk`, the APK file is located at:
+
+```bash
+build/app/outputs/flutter-apk/app-release.apk
 ```
 
 ## Testing

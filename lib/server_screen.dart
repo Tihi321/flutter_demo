@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'dart:io';
-import 'package:web_socket_channel/io.dart';
 import 'package:qr_flutter/qr_flutter.dart';
-import 'dart:convert';  // Add this import at the top
+import 'dart:convert'; // Add this import at the top
+import 'utils/platform.dart';
+import 'utils/address.dart';
 
 class ServerScreen extends StatefulWidget {
   const ServerScreen({super.key});
@@ -16,7 +17,8 @@ class _ServerScreenState extends State<ServerScreen> {
   HttpServer? _server;
   List<WebSocket> _clients = [];
   final TextEditingController _messageController = TextEditingController();
-  final TextEditingController _portController = TextEditingController(text: '4040');
+  final TextEditingController _portController =
+      TextEditingController(text: '4040');
   final List<String> _messages = [];
   bool _isServerStarted = false;
 
@@ -29,50 +31,35 @@ class _ServerScreenState extends State<ServerScreen> {
     final port = int.tryParse(_portController.text);
     if (port == null || port < 1 || port > 65535) {
       setState(() {
-        _messages.add('Invalid port number. Please enter a number between 1 and 65535.');
+        _messages.add(
+            'Invalid port number. Please enter a number between 1 and 65535.');
       });
       return;
     }
 
     try {
       print('Starting server on port $port...');
-      
+
       // Get the WiFi IP address
       List<NetworkInterface> interfaces = await NetworkInterface.list(
         includeLoopback: false,
         type: InternetAddressType.IPv4,
       );
-      
-      String? serverIp;
-      for (var interface in interfaces) {
-        print('Interface: ${interface.name}');
-        for (var addr in interface.addresses) {
-          print('  Address: ${addr.address}');
-          // Look for the WiFi or hotspot interface
-          if (interface.name.toLowerCase().contains('wlan') || 
-              interface.name.toLowerCase().contains('wifi') ||
-              interface.name.toLowerCase().contains('wireless')) {
-            serverIp = addr.address;
-            break;
-          }
-        }
-        if (serverIp != null) break;
-      }
-      
-      if (serverIp == null) {
-        print('Warning: Could not find WiFi interface, falling back to any IPv4');
-        serverIp = InternetAddress.anyIPv4.address;
-      }
-      
+
+      bool isEmulator = await checkIsEmulator();
+
+      String? serverIp = getServerAddress(interfaces, isEmulator);
       print('Binding server to IP: $serverIp');
       _server = await HttpServer.bind(serverIp, port, shared: true);
-      print('Server started successfully on ${_server!.address.address}:${_server!.port}');
-      
+      print(
+          'Server started successfully on ${_server!.address.address}:${_server!.port}');
+
       setState(() {
         _isServerStarted = true;
-        _messages.add('Server started on ${_server!.address.address}:${_server!.port}');
+        _messages.add(
+            'Server started on ${_server!.address.address}:${_server!.port}');
       });
-      
+
       _server!.listen(
         (HttpRequest request) async {
           print('Received request for: ${request.uri.path}');
@@ -82,10 +69,11 @@ class _ServerScreenState extends State<ServerScreen> {
               var socket = await WebSocketTransformer.upgrade(request);
               print('WebSocket connection established');
               _clients.add(socket);
-              
+
               // Send welcome message to the new client
-              socket.add('Connected to server at ${_server!.address.address}:${_server!.port}');
-              
+              socket.add(
+                  'Connected to server at ${_server!.address.address}:${_server!.port}');
+
               socket.listen(
                 (message) {
                   print('Received message from client: $message');

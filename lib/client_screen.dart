@@ -3,6 +3,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'utils/platform.dart'; // Add this import
 
 class ClientScreen extends StatefulWidget {
   const ClientScreen({super.key});
@@ -14,7 +15,7 @@ class ClientScreen extends StatefulWidget {
 class _ClientScreenState extends State<ClientScreen> {
   WebSocketChannel? _channel;
   final TextEditingController _ipController = TextEditingController();
-  final TextEditingController _portController = TextEditingController();  // New
+  final TextEditingController _portController = TextEditingController(); // New
   final TextEditingController _messageController = TextEditingController();
   final TextEditingController _usernameController = TextEditingController();
   final List<String> _messages = [];
@@ -26,7 +27,17 @@ class _ClientScreenState extends State<ClientScreen> {
   void initState() {
     super.initState();
     _usernameController.text = 'Client 1';
-    _portController.text = '4040';  // Default port
+    _portController.text = '4040'; // Default port
+    _initializeServerAddress();
+  }
+
+  Future<void> _initializeServerAddress() async {
+    final serverAddress = await getDevServerAddress(defaultAddress: '');
+    if (mounted && serverAddress.isNotEmpty) {
+      setState(() {
+        _ipController.text = serverAddress;
+      });
+    }
   }
 
   void _connectToServer([String? ip, String? port]) {
@@ -39,7 +50,7 @@ class _ClientScreenState extends State<ClientScreen> {
 
     final serverIp = ip ?? _ipController.text;
     final serverPort = port ?? _portController.text;
-    
+
     if (serverIp.isEmpty || serverPort.isEmpty) {
       setState(() {
         _connectionError = 'Please enter both server IP address and port';
@@ -52,7 +63,7 @@ class _ClientScreenState extends State<ClientScreen> {
     try {
       _channel = WebSocketChannel.connect(Uri.parse(wsUrl));
       print('WebSocket channel created, waiting for connection...');
-      
+
       _channel!.stream.listen(
         (message) {
           print('Received message from server: $message');
@@ -77,7 +88,7 @@ class _ClientScreenState extends State<ClientScreen> {
           });
         },
       );
-      
+
       print('Sending username to server...');
       _channel?.sink.add('USERNAME:${_usernameController.text}');
       print('Username sent successfully');
@@ -120,7 +131,7 @@ class _ClientScreenState extends State<ClientScreen> {
             for (final barcode in barcodes) {
               if (barcode.rawValue != null) {
                 try {
-                  final Map<String, dynamic> data = 
+                  final Map<String, dynamic> data =
                       Map<String, dynamic>.from(json.decode(barcode.rawValue!));
                   _ipController.text = data['ip'] ?? '';
                   _portController.text = data['port']?.toString() ?? '4040';
