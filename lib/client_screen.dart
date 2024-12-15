@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
+import 'dart:convert';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
@@ -13,6 +14,7 @@ class ClientScreen extends StatefulWidget {
 class _ClientScreenState extends State<ClientScreen> {
   WebSocketChannel? _channel;
   final TextEditingController _ipController = TextEditingController();
+  final TextEditingController _portController = TextEditingController();  // New
   final TextEditingController _messageController = TextEditingController();
   final TextEditingController _usernameController = TextEditingController();
   final List<String> _messages = [];
@@ -24,9 +26,10 @@ class _ClientScreenState extends State<ClientScreen> {
   void initState() {
     super.initState();
     _usernameController.text = 'Client 1';
+    _portController.text = '4040';  // Default port
   }
 
-  void _connectToServer([String? ip]) {
+  void _connectToServer([String? ip, String? port]) {
     if (_usernameController.text.isEmpty) {
       setState(() {
         _connectionError = 'Please enter a username';
@@ -35,14 +38,16 @@ class _ClientScreenState extends State<ClientScreen> {
     }
 
     final serverIp = ip ?? _ipController.text;
-    if (serverIp.isEmpty) {
+    final serverPort = port ?? _portController.text;
+    
+    if (serverIp.isEmpty || serverPort.isEmpty) {
       setState(() {
-        _connectionError = 'Please enter a server IP address';
+        _connectionError = 'Please enter both server IP address and port';
       });
       return;
     }
 
-    final wsUrl = 'ws://$serverIp:4040/ws';
+    final wsUrl = 'ws://$serverIp:$serverPort/ws';
     print('Attempting to connect to: $wsUrl');
     try {
       _channel = WebSocketChannel.connect(Uri.parse(wsUrl));
@@ -114,9 +119,16 @@ class _ClientScreenState extends State<ClientScreen> {
             final List<Barcode> barcodes = capture.barcodes;
             for (final barcode in barcodes) {
               if (barcode.rawValue != null) {
-                _ipController.text = barcode.rawValue!;
-                _stopQRScanner();
-                break;
+                try {
+                  final Map<String, dynamic> data = 
+                      Map<String, dynamic>.from(json.decode(barcode.rawValue!));
+                  _ipController.text = data['ip'] ?? '';
+                  _portController.text = data['port']?.toString() ?? '4040';
+                  _stopQRScanner();
+                  break;
+                } catch (e) {
+                  print('Error parsing QR code: $e');
+                }
               }
             }
           },
@@ -175,12 +187,25 @@ class _ClientScreenState extends State<ClientScreen> {
                     child: Row(
                       children: [
                         Expanded(
+                          flex: 7,
                           child: TextField(
                             controller: _ipController,
                             decoration: const InputDecoration(
                               labelText: 'Enter server IP',
                               border: OutlineInputBorder(),
                             ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          flex: 3,
+                          child: TextField(
+                            controller: _portController,
+                            decoration: const InputDecoration(
+                              labelText: 'Port',
+                              border: OutlineInputBorder(),
+                            ),
+                            keyboardType: TextInputType.number,
                           ),
                         ),
                         IconButton(

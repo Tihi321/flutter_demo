@@ -3,6 +3,7 @@ import 'dart:async';
 import 'dart:io';
 import 'package:web_socket_channel/io.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'dart:convert';  // Add this import at the top
 
 class ServerScreen extends StatefulWidget {
   const ServerScreen({super.key});
@@ -219,7 +220,10 @@ class _ServerScreenState extends State<ServerScreen> {
                           width: 200,
                           height: 200,
                           child: QrImageView(
-                            data: '${_server?.address.address}:${_server?.port}',
+                            data: jsonEncode({
+                              'ip': _server?.address.address,
+                              'port': _server?.port.toString()
+                            }),
                             version: QrVersions.auto,
                             size: 200.0,
                           ),
