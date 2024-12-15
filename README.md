@@ -34,31 +34,49 @@ dependencies:
 ## Installation
 
 1. Clone the repository
+
 ```bash
-git clone https://github.com/yourusername/flutter_demo.git
-cd flutter_demo
+git clone https://github.com/yourusername/local_chat.git
+cd local_chat
 ```
 
 2. Install dependencies
+
 ```bash
 flutter pub get
 ```
 
 3. Run the app
+
 ```bash
 # Start an emulator or connect a physical device
 flutter emulators --launch Pixel_9_API_35  # Or your preferred emulator
 flutter run
 ```
 
+4. Multiple emulators can be launched simultaneously by running:
+
+```bash
+flutter devices
+flutter emulators
+
+flutter emulators --launch <emulator1_id>
+flutter emulators --launch <emulator2_id>
+
+flutter run -d <device1_id>
+flutter run -d <device2_id>
+```
+
 ## Building
 
 ### Debug Build
+
 ```bash
 flutter build apk --debug
 ```
 
 ### Release Build
+
 ```bash
 # For Android
 flutter build apk --release
@@ -68,6 +86,7 @@ flutter build ios --release
 ```
 
 ### Clean Build
+
 ```bash
 flutter clean
 flutter pub get
@@ -77,6 +96,7 @@ flutter build apk --release
 ## Testing
 
 For best results, test with physical devices:
+
 1. Install the app on two or more devices
 2. Enable WiFi hotspot on the server device
 3. Connect client devices to the server's hotspot
@@ -116,6 +136,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 For detailed information about the app's functionality, please check the [Info.md](Info.md) file.
 
 If you encounter any issues or have questions:
+
 1. Check the [Issues](https://github.com/yourusername/flutter_demo/issues) page
 2. Create a new issue with detailed information about your problem
 3. Join our [Discord community](your-discord-link) for real-time support
@@ -123,3 +144,13 @@ If you encounter any issues or have questions:
 ## Screenshots
 
 [Add screenshots of your app here]
+
+## Development Tools
+
+### List Available Emulators
+
+Run the following command to see all available emulators:
+
+```bash
+flutter emulators
+```
